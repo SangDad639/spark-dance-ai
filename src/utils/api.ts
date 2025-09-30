@@ -31,12 +31,21 @@ export const analyzeImageWithOpenAI = async (base64Image: string, apiKey: string
   const data = await response.json();
   const content = data.choices[0].message.content;
   
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error('Failed to parse JSON from OpenAI response');
+  // Check if OpenAI refused the request
+  if (content.includes("I'm sorry") || content.includes("I can't") || content.includes("I cannot")) {
+    throw new Error('OpenAI refused to analyze this image. The content may violate their usage policies. Please try with a different image or modify your prompt.');
   }
   
-  return JSON.parse(jsonMatch[0]);
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error(`Unable to extract JSON from response. OpenAI returned: ${content.substring(0, 100)}...`);
+  }
+  
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch (e) {
+    throw new Error(`Failed to parse JSON: ${e.message}`);
+  }
 };
 
 export const generateImageWithFal = async (prompt: string, falKey: string): Promise<string> => {

@@ -10,7 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from '@/hooks/use-toast';
 import { Upload, X, Sparkles, Loader2 } from 'lucide-react';
 import {
-  analyzeImageWithOpenAI,
+  analyzeImageWithAI,
   generateImageWithFal,
   generateVideoWithFal,
   createVideoPrompt,
@@ -64,10 +64,10 @@ export default function Index() {
   };
 
   const handleGenerate = async () => {
-    if (!apiKeys?.openai || !apiKeys?.fal) {
+    if (!apiKeys?.fal) {
       toast({
-        title: 'API Keys Required',
-        description: 'Please configure your API keys in Settings',
+        title: 'FAL API Key Required',
+        description: 'Please configure your FAL.AI API key in Settings',
         variant: 'destructive',
       });
       navigate('/settings');
@@ -101,7 +101,7 @@ export default function Index() {
       setStatusMessage('Analyzing image with AI...');
       setProgress(10);
       const base64Image = await imageToBase64(selectedImage);
-      const analysis = await analyzeImageWithOpenAI(base64Image, apiKeys.openai);
+      const analysis = await analyzeImageWithAI(base64Image);
       job.imageAnalysis = analysis;
       setProgress(25);
 

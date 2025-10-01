@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { Upload, X, Sparkles, Loader2, Eye } from 'lucide-react';
+import { Upload, X, Sparkles, Loader2, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   analyzeImageWithAI,
   generateImageWithKie,
@@ -677,7 +677,7 @@ export default function Index() {
       {/* Image Preview Modal */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent className="max-w-4xl w-full max-h-[90vh] bg-black/95 border-white/20">
-          <div className="flex items-center justify-center p-4">
+          <div className="relative flex items-center justify-center p-4">
             {generatedImages[previewImageIndex] && (
               <img
                 src={generatedImages[previewImageIndex]}
@@ -685,39 +685,40 @@ export default function Index() {
                 className="max-w-full max-h-[80vh] object-contain rounded-lg"
               />
             )}
+
+            {/* Left Arrow */}
+            {previewImageIndex > 0 && (
+              <button
+                onClick={() => setPreviewImageIndex(Math.max(0, previewImageIndex - 1))}
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-3 transition-all z-10"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+            )}
+
+            {/* Right Arrow */}
+            {previewImageIndex < generatedImages.length - 1 && (
+              <button
+                onClick={() => setPreviewImageIndex(Math.min(generatedImages.length - 1, previewImageIndex + 1))}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-3 transition-all z-10"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            )}
+
+            {/* Close Button */}
+            <button
+              onClick={() => setIsPreviewOpen(false)}
+              className="absolute top-4 right-4 bg-black/50 hover:bg-red-600/80 text-white rounded-full p-2 transition-all z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <div className="flex items-center justify-between p-4 border-t border-white/10">
+
+          {/* Image Counter */}
+          <div className="flex items-center justify-center p-4 border-t border-white/10">
             <div className="text-white/70 text-sm">
               Image {previewImageIndex + 1} of {generatedImages.length}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPreviewImageIndex(Math.max(0, previewImageIndex - 1))}
-                disabled={previewImageIndex === 0}
-                className="text-white border-white/20 hover:bg-white/10"
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPreviewImageIndex(Math.min(generatedImages.length - 1, previewImageIndex + 1))}
-                disabled={previewImageIndex === generatedImages.length - 1}
-                className="text-white border-white/20 hover:bg-white/10"
-              >
-                Next
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setIsPreviewOpen(false)}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                <X className="w-4 h-4 mr-2" />
-                Close
-              </Button>
             </div>
           </div>
         </DialogContent>

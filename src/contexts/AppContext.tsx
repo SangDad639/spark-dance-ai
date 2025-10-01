@@ -22,7 +22,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const savedKeys = localStorage.getItem('apiKeys');
     if (savedKeys) {
-      setApiKeysState(JSON.parse(savedKeys));
+      try {
+        const parsed = JSON.parse(savedKeys) as Record<string, unknown>;
+        if (parsed && typeof parsed === 'object') {
+          if (!('kie' in parsed) && typeof parsed.fal === 'string' && parsed.fal.trim()) {
+            parsed.kie = parsed.fal;
+          }
+          if ('fal' in parsed) {
+            delete parsed.fal;
+          }
+          setApiKeysState(parsed as ApiKeys);
+          localStorage.setItem('apiKeys', JSON.stringify(parsed));
+        }
+      } catch (error) {
+        console.error('Failed to parse stored API keys', error);
+      }
     }
 
     const savedHistory = localStorage.getItem('jobHistory');

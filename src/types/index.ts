@@ -1,6 +1,6 @@
 export interface ApiKeys {
   openai: string;
-  fal: string;
+  kie: string;
   n8nWebhook?: string;
   googleDriveFolderId?: string;
   facebookPageId?: string;
@@ -34,9 +34,11 @@ export interface GenerationJob {
   originalImage: string;
   imageAnalysis?: ImageAnalysis;
   regeneratedImageUrl?: string;
+  imagePrompt?: string;
+  videoPrompt?: string;
   videos: GeneratedVideo[];
   videoCount: number;
-  status: 'analyzing' | 'generating-image' | 'generating-videos' | 'completed' | 'failed';
+  status: 'analyzing' | 'generating-image' | 'image-ready' | 'generating-videos' | 'completed' | 'failed';
   error?: string;
   createdAt: Date;
 }

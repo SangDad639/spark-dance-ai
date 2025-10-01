@@ -18,7 +18,9 @@ Changes made via Lovable will be committed automatically to this repo.
 
 If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+The only requirement is having Node.js (>=20.19.0 <21 or >=22.12.0) and npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+
+If you manage Node with nvm, run `nvm use` (or `nvm install`) to match the version pinned in `.nvmrc` before installing dependencies.
 
 Follow these steps:
 
@@ -71,3 +73,10 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## API configuration
+
+- Provide your OpenAI API key to enable Supabase functions for analysis.
+- Add your Kie.ai API key (https://kie.ai/api-key) to generate images with Seedream V4 and videos with Wan 2.5.
+- Optional: configure n8n webhook, Google Drive, and Facebook details for downstream automations via the Settings page.
+

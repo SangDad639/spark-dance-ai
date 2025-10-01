@@ -6,28 +6,34 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { toast } from '@/hooks/use-toast';
 import { Upload, X, Sparkles, Loader2 } from 'lucide-react';
 import {
   analyzeImageWithAI,
-  generateImageWithFal,
-  generateVideoWithFal,
+  generateImageWithKie,
+  generateVideoWithKie,
   createVideoPrompt,
   createCaption,
   imageToBase64,
+  clampPromptLength,
 } from '@/utils/api';
 import { GenerationJob, GeneratedVideo } from '@/types';
 
 export default function Index() {
   const navigate = useNavigate();
-  const { apiKeys, setCurrentJob, addJobToHistory } = useAppContext();
+  const { apiKeys, currentJob, setCurrentJob, addJobToHistory } = useAppContext();
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [videoCount, setVideoCount] = useState<number>(1);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingVideos, setIsGeneratingVideos] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
+  const [currentPrompts, setCurrentPrompts] = useState<{ image?: string; video?: string }>({});
+  const [videoDuration, setVideoDuration] = useState('5');
+  const [videoResolution, setVideoResolution] = useState('720p');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageSelect = (file: File) => {
@@ -41,6 +47,10 @@ export default function Index() {
     }
 
     setSelectedImage(file);
+    setCurrentPrompts({});
+    setCurrentJob(null);
+    resetProgressState();
+
     const reader = new FileReader();
     reader.onload = (e) => setImagePreview(e.target?.result as string);
     reader.readAsDataURL(file);
@@ -58,16 +68,21 @@ export default function Index() {
     setSelectedImage(null);
     setImagePreview(null);
     setVideoCount(1);
+    setCurrentPrompts({});
+    setCurrentJob(null);
+    setIsGeneratingImage(false);
+    setIsGeneratingVideos(false);
+    resetProgressState();
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const handleGenerate = async () => {
-    if (!apiKeys?.fal) {
+  const handleGenerateImage = async () => {
+    if (!apiKeys?.kie) {
       toast({
-        title: 'FAL API Key Required',
-        description: 'Please configure your FAL.AI API key in Settings',
+        title: 'Kie.ai API Key Required',
+        description: 'Please configure your Kie.ai API key in Settings',
         variant: 'destructive',
       });
       navigate('/settings');
@@ -83,61 +98,146 @@ export default function Index() {
       return;
     }
 
-    setIsProcessing(true);
+    setCurrentPrompts({});
+    setIsGeneratingImage(true);
     setProgress(0);
-
-    const jobId = `job-${Date.now()}`;
-    const job: GenerationJob = {
-      id: jobId,
-      originalImage: imagePreview!,
-      videos: [],
-      videoCount,
-      status: 'analyzing',
-      createdAt: new Date(),
-    };
+    setStatusMessage('Analyzing image with AI...');
 
     try {
-      // Step 1: Analyze image
-      setStatusMessage('Analyzing image with AI...');
-      setProgress(10);
       const base64Image = await imageToBase64(selectedImage);
+      if (!imagePreview) {
+        setImagePreview(base64Image);
+      }
+
       const analysis = await analyzeImageWithAI(base64Image);
-      job.imageAnalysis = analysis;
       setProgress(25);
 
-      // Step 2: Generate new image
+      const imagePrompt = clampPromptLength(analysis.detailed_prompt, 800);
+      setCurrentPrompts((prev) => ({ ...prev, image: imagePrompt }));
+
       setStatusMessage('Creating enhanced image...');
-      const imagePrompt = analysis.detailed_prompt;
-      const regeneratedImageUrl = await generateImageWithFal(imagePrompt, apiKeys.fal);
+      const regeneratedImageUrl = await generateImageWithKie(imagePrompt, apiKeys.kie);
+      setProgress(70);
+
+      const rawVideoPrompt = createVideoPrompt(analysis);
+      const videoPrompt = clampPromptLength(rawVideoPrompt, 800);
+      setCurrentPrompts((prev) => ({ ...prev, image: imagePrompt, video: videoPrompt }));
+
+      const job: GenerationJob = currentJob
+        ? {
+            ...currentJob,
+            videos: [],
+            videoCount,
+            status: 'image-ready',
+          }
+        : {
+            id: `job-${Date.now()}`,
+            originalImage: imagePreview ?? base64Image,
+            videos: [],
+            videoCount,
+            status: 'image-ready',
+            createdAt: new Date(),
+          };
+
+      job.originalImage = imagePreview ?? base64Image;
+      job.imageAnalysis = analysis;
+      job.imagePrompt = imagePrompt;
+      job.videoPrompt = videoPrompt;
       job.regeneratedImageUrl = regeneratedImageUrl;
-      job.status = 'generating-videos';
-      setProgress(40);
+      job.videos = [];
+      job.status = 'image-ready';
+      delete job.error;
 
-      // Step 3: Generate videos
-      const videoPrompt = createVideoPrompt(analysis);
-      const caption = createCaption(analysis);
+      setCurrentJob(job);
+      setStatusMessage('Image generated. Review the result before creating videos.');
+      setProgress(100);
+    } catch (error: any) {
+      console.error('Image generation error:', error);
+      toast({
+        title: 'Image Generation Failed',
+        description: error.message || 'An error occurred while generating the image',
+        variant: 'destructive',
+      });
+      resetProgressState();
+    } finally {
+      setIsGeneratingImage(false);
+      setProgress(0);
+      setTimeout(() => setStatusMessage(''), 1500);
+    }
+  };
 
+  const handleGenerateVideos = async () => {
+    if (!apiKeys?.kie) {
+      toast({
+        title: 'Kie.ai API Key Required',
+        description: 'Please configure your Kie.ai API key in Settings',
+        variant: 'destructive',
+      });
+      navigate('/settings');
+      return;
+    }
+
+    if (!currentJob?.regeneratedImageUrl || !currentJob.videoPrompt) {
+      toast({
+        title: 'Image Review Required',
+        description: 'Please generate and review the image before creating videos.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!currentJob.imageAnalysis) {
+      toast({
+        title: 'Missing Analysis',
+        description: 'Image analysis data was not found. Please generate the image again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const analysis = currentJob.imageAnalysis;
+    const caption = createCaption(analysis);
+
+    const job: GenerationJob = {
+      ...currentJob,
+      videos: [],
+      videoCount,
+      status: 'generating-videos',
+      error: undefined,
+    };
+
+    setCurrentJob(job);
+    setIsGeneratingVideos(true);
+    setProgress(0);
+    setStatusMessage('Starting video generation...');
+
+    try {
       for (let i = 0; i < videoCount; i++) {
         setStatusMessage(`Generating video ${i + 1} of ${videoCount}...`);
-        const videoUrl = await generateVideoWithFal(regeneratedImageUrl, videoPrompt, apiKeys.fal);
-        
+
+        const videoUrl = await generateVideoWithKie(
+          job.regeneratedImageUrl!,
+          job.videoPrompt!,
+          apiKeys.kie,
+          { duration: videoDuration, resolution: videoResolution }
+        );
+
         const video: GeneratedVideo = {
           id: `video-${Date.now()}-${i}`,
           videoUrl,
-          prompt: videoPrompt,
+          prompt: job.videoPrompt!,
           caption,
           createdAt: new Date(),
           status: 'completed',
         };
 
-        job.videos.push(video);
-        setProgress(40 + ((i + 1) / videoCount) * 55);
+        job.videos = [...job.videos, video];
+        setProgress(Math.round(((i + 1) / videoCount) * 90) + 10);
+        setCurrentJob({ ...job });
       }
 
       job.status = 'completed';
-      setProgress(100);
-      setStatusMessage('All videos generated successfully!');
-
+      job.videoCount = videoCount;
       setCurrentJob(job);
       addJobToHistory(job);
 
@@ -146,24 +246,26 @@ export default function Index() {
         description: `Generated ${videoCount} video${videoCount !== 1 ? 's' : ''} successfully`,
       });
 
-      // Navigate to results after a short delay
-      setTimeout(() => {
-        navigate('/results');
-      }, 1500);
-
+      setStatusMessage('Videos generated successfully!');
+      setProgress(100);
+      setTimeout(() => navigate('/results'), 1500);
     } catch (error: any) {
-      console.error('Generation error:', error);
+      console.error('Video generation error:', error);
       job.status = 'failed';
       job.error = error.message;
-      
+      setCurrentJob(job);
+
       toast({
-        title: 'Generation Failed',
-        description: error.message || 'An error occurred during generation',
+        title: 'Video Generation Failed',
+        description: error.message || 'An error occurred while generating the videos',
         variant: 'destructive',
       });
+
+      resetProgressState();
     } finally {
-      setIsProcessing(false);
-      setStatusMessage('');
+      setIsGeneratingVideos(false);
+      setTimeout(() => setStatusMessage(''), 1500);
+      setProgress(0);
     }
   };
 
@@ -235,12 +337,49 @@ export default function Index() {
                   value={videoCount}
                   onChange={(e) => setVideoCount(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
                   className="bg-white/5 border-white/20 text-white"
-                  disabled={isProcessing}
+                  disabled={isGeneratingImage || isGeneratingVideos}
                 />
               </div>
 
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="videoDuration" className="text-white">
+                    Video Duration (seconds)
+                  </Label>
+                  <Input
+                    id="videoDuration"
+                    type="number"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value={videoDuration}
+                    onChange={(e) => {
+                      const value = Math.max(1, Math.min(10, parseInt(e.target.value || '0', 10) || 1));
+                      setVideoDuration(value.toString());
+                    }}
+                    className="bg-white/5 border-white/20 text-white"
+                    disabled={isGeneratingImage || isGeneratingVideos}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="videoResolution" className="text-white">
+                    Video Resolution
+                  </Label>
+                  <select
+                    id="videoResolution"
+                    value={videoResolution}
+                    onChange={(e) => setVideoResolution(e.target.value)}
+                    className="w-full rounded-md border border-white/20 bg-white/5 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/40"
+                    disabled={isGeneratingImage || isGeneratingVideos}
+                  >
+                    <option value="720p">720p</option>
+                    <option value="1080p">1080p</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Progress */}
-              {isProcessing && (
+              {(isGeneratingImage || isGeneratingVideos) && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-white text-sm">
                     <span>{statusMessage}</span>
@@ -250,18 +389,81 @@ export default function Index() {
                 </div>
               )}
 
+              {currentJob?.regeneratedImageUrl && (
+                <div className="space-y-2">
+                  <Label className="text-white">Generated Image Preview</Label>
+                  <img
+                    src={currentJob.regeneratedImageUrl}
+                    alt="Generated image preview"
+                    className="w-full max-h-96 rounded-lg border border-white/10 bg-black/20 object-contain"
+                  />
+                </div>
+              )}
+
+              {(currentPrompts.image || currentPrompts.video) && (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-4 space-y-3">
+                  <h3 className="text-white font-semibold text-sm">Prompts Used</h3>
+                  {currentPrompts.image && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs text-white/60">
+                        <span>Image Prompt</span>
+                        <span>{currentPrompts.image.length}/800</span>
+                      </div>
+                      <Textarea
+                        value={currentPrompts.image}
+                        readOnly
+                        rows={4}
+                        className="bg-white/5 border-white/15 text-white text-sm resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                      />
+                    </div>
+                  )}
+                  {currentPrompts.video && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs text-white/60">
+                        <span>Video Prompt</span>
+                        <span>{currentPrompts.video.length}/800</span>
+                      </div>
+                      <Textarea
+                        value={currentPrompts.video}
+                        readOnly
+                        rows={4}
+                        className="bg-white/5 border-white/15 text-white text-sm resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Actions */}
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <Button
-                  onClick={handleGenerate}
-                  disabled={!selectedImage || isProcessing}
-                  className="flex-1"
+                  onClick={handleGenerateImage}
+                  disabled={!selectedImage || isGeneratingImage || isGeneratingVideos}
+                  className="flex-1 min-w-[180px]"
                   size="lg"
                 >
-                  {isProcessing ? (
+                  {isGeneratingImage ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Processing...
+                      Processing Image...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Generate Image
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={handleGenerateVideos}
+                  disabled={!currentJob?.regeneratedImageUrl || !currentJob?.videoPrompt || isGeneratingImage || isGeneratingVideos}
+                  className="flex-1 min-w-[180px]"
+                  size="lg"
+                >
+                  {isGeneratingVideos ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Generating Videos...
                     </>
                   ) : (
                     <>
@@ -270,7 +472,7 @@ export default function Index() {
                     </>
                   )}
                 </Button>
-                {selectedImage && !isProcessing && (
+                {selectedImage && !isGeneratingImage && !isGeneratingVideos && (
                   <Button onClick={handleClear} variant="outline" size="lg" className="text-white border-white/20 hover:bg-white/10">
                     <X className="w-5 h-5 mr-2" />
                     Clear
@@ -284,3 +486,12 @@ export default function Index() {
     </Layout>
   );
 }
+
+
+
+
+
+
+
+
+

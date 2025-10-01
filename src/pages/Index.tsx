@@ -459,11 +459,25 @@ export default function Index() {
                       return (
                         <div
                           key={index}
-                          className={`relative rounded-lg overflow-hidden border-2 transition-all group ${
+                          className={`relative rounded-lg overflow-hidden border-2 transition-all group cursor-pointer ${
                             slot.url && isSelected
-                              ? 'border-green-500 ring-2 ring-green-500/50'
-                              : 'border-white/20 hover:border-white/40'
-                          }`}
+                              ? 'border-green-500 ring-2 ring-green-500/50 shadow-lg shadow-green-500/25'
+                              : 'border-white/20 hover:border-green-400/60 hover:shadow-md'
+                          } ${slot.url ? 'hover:scale-[1.02]' : ''}`}
+                          onClick={() => {
+                            if (slot.url && actualImageIndex >= 0) {
+                              const newSelectedIndices = isSelected
+                                ? selectedImageIndices.filter(i => i !== actualImageIndex)
+                                : [...selectedImageIndices, actualImageIndex];
+
+                              setSelectedImageIndices(newSelectedIndices);
+
+                              if (currentJob) {
+                                currentJob.selectedImageUrls = newSelectedIndices.map(i => generatedImages[i]);
+                                setCurrentJob({ ...currentJob });
+                              }
+                            }
+                          }}
                         >
                           {slot.loading ? (
                             // Loading state
@@ -484,62 +498,47 @@ export default function Index() {
                             </div>
                           ) : slot.url ? (
                             // Success state
-                            <div
-                              onClick={() => {
-                                if (actualImageIndex >= 0) {
-                                  const newSelectedIndices = isSelected
-                                    ? selectedImageIndices.filter(i => i !== actualImageIndex)
-                                    : [...selectedImageIndices, actualImageIndex];
-
-                                  setSelectedImageIndices(newSelectedIndices);
-
-                                  if (currentJob) {
-                                    currentJob.selectedImageUrls = newSelectedIndices.map(i => generatedImages[i]);
-                                    setCurrentJob({ ...currentJob });
-                                  }
-                                }
-                              }}
-                              className="cursor-pointer hover:scale-105 transition-transform"
-                            >
+                            <div className="relative w-full h-32">
                               <img
                                 src={slot.url}
                                 alt={`Generated option ${index + 1}`}
                                 className="w-full h-32 object-cover"
                               />
+
+                              {/* Selection overlay */}
+                              {isSelected && (
+                                <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
+                                  <div className="bg-green-500 rounded-full p-2">
+                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              )}
+
                             </div>
                           ) : null}
 
-                          {/* Action buttons overlay - only for successful images */}
+                          {/* Preview button - top right corner */}
                           {slot.url && !slot.loading && (
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (actualImageIndex >= 0) {
-                                    openImagePreview(actualImageIndex);
-                                  }
-                                }}
-                                className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2 transition-colors"
-                                title="Preview full size"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (actualImageIndex >= 0) {
+                                  openImagePreview(actualImageIndex);
+                                }
+                              }}
+                              className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-2 transition-colors opacity-0 group-hover:opacity-100 z-10"
+                              title="Preview full size"
+                            >
+                              <Eye className="w-3 h-3" />
+                            </button>
                           )}
 
                           {/* Option number */}
                           <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
                             Option {index + 1}
                           </div>
-
-                          {/* Selection indicator */}
-                          {slot.url && isSelected && (
-                            <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          )}
                         </div>
                       );
                     })}

@@ -17,7 +17,7 @@ import {
   createVideoPrompt,
   createCaption,
   imageToBase64,
-  clampPromptLength,
+  optimizePromptLength,
 } from '@/utils/api';
 import { GenerationJob, GeneratedVideo } from '@/types';
 
@@ -35,6 +35,13 @@ export default function Index() {
   const [videoDuration, setVideoDuration] = useState('5');
   const [videoResolution, setVideoResolution] = useState('720p');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const resetProgressState = () => {
+    setProgress(0);
+    setStatusMessage('');
+    setIsGeneratingImage(false);
+    setIsGeneratingVideos(false);
+  };
 
   const handleImageSelect = (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
@@ -112,15 +119,16 @@ export default function Index() {
       const analysis = await analyzeImageWithAI(base64Image);
       setProgress(25);
 
-      const imagePrompt = clampPromptLength(analysis.detailed_prompt, 800);
+      const imagePrompt = optimizePromptLength(analysis.detailed_prompt, 800);
       setCurrentPrompts((prev) => ({ ...prev, image: imagePrompt }));
 
       setStatusMessage('Creating enhanced image...');
-      const regeneratedImageUrl = await generateImageWithKie(imagePrompt, apiKeys.kie);
+      const regeneratedImageUrls = await generateImageWithKie([imagePrompt], apiKeys.kie);
+      const regeneratedImageUrl = regeneratedImageUrls[0];
       setProgress(70);
 
       const rawVideoPrompt = createVideoPrompt(analysis);
-      const videoPrompt = clampPromptLength(rawVideoPrompt, 800);
+      const videoPrompt = optimizePromptLength(rawVideoPrompt, 800);
       setCurrentPrompts((prev) => ({ ...prev, image: imagePrompt, video: videoPrompt }));
 
       const job: GenerationJob = currentJob

@@ -16,7 +16,16 @@ export interface ImageAnalysis {
   pose: string;
   clothing: string;
   hair: string;
+  hair_color: string;
   background: string;
+  ethnicity: string;
+  skin_color: string;
+  skin_tone: string;
+  breast_size: string;
+  breast_focus: string;
+  eye_color: string;
+  makeup_style: string;
+  body_proportions: string;
 }
 
 export interface GeneratedVideo {
@@ -33,7 +42,8 @@ export interface GenerationJob {
   id: string;
   originalImage: string;
   imageAnalysis?: ImageAnalysis;
-  regeneratedImageUrl?: string;
+  regeneratedImageUrls?: string[];
+  selectedImageUrls?: string[];
   imagePrompt?: string;
   videoPrompt?: string;
   videos: GeneratedVideo[];

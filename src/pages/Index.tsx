@@ -663,7 +663,7 @@ export default function Index() {
                   )}
                 </Button>
                 {selectedImage && !isGeneratingImage && !isGeneratingVideos && (
-                  <Button onClick={handleClear} variant="outline" size="lg" className="text-white border-white/20 hover:bg-white/10">
+                  <Button onClick={handleClear} variant="secondary" size="lg" className="bg-white/10 hover:bg-white/20 text-white border-0">
                     <X className="w-5 h-5 mr-2" />
                     Clear
                   </Button>
